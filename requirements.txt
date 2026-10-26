@@ -1,0 +1,27 @@
+# Python 3.11；GPU 训练使用 CUDA 12.1
+# 已在 Python 3.11 + CPU 上用 experiment/smoke_test.bash 验证
+#
+# transformers 必须在 [4.41, 4.46) 之间：
+#   - 训练脚本使用 --eval_strategy 参数（4.41 起支持）
+#   - main_llm_cls.py 的 compute_loss 不接收 num_items_in_batch（4.46 起会传入，导致报错）
+
+torch==2.4.1
+transformers==4.44.2
+tokenizers==0.19.1
+accelerate==0.34.2
+datasets==2.21.0
+pyarrow==16.1.0
+huggingface_hub==0.25.2
+safetensors==0.8.0
+numpy==1.26.4
+pandas==2.2.3
+scikit-learn==1.5.2
+imbalanced-learn==0.12.3
+dill==0.3.8
+jsonlines==4.0.0
+sentencepiece==0.2.0
+protobuf==4.25.5
+gdown==5.2.0
+
+# 仅 GPU 训练需要；安装方式: DS_BUILD_OPS=0 pip install --no-build-isolation deepspeed==0.15.1
+deepspeed==0.15.1

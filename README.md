@@ -46,6 +46,27 @@ drug_data = torch.load('data/mimic3/l_data/drug_embeddings.pt')
 
 ---
 
+### Step 0: Environment and Smoke Test
+
+Python 3.11 with pinned dependencies (see `requirements.txt`, CUDA 12.1 for GPU training):
+
+```bash
+pip install -r <(grep -v '^deepspeed' requirements.txt)
+DS_BUILD_OPS=0 pip install --no-build-isolation deepspeed==0.15.1   # GPU training only
+```
+
+or use Docker (code and dependencies only; data and weights are mounted at runtime, see `Dockerfile`):
+
+```bash
+docker build -t hadrec .
+```
+
+Then check that the whole pipeline runs. The smoke test uses synthetic data and a randomly initialised tiny LLaMA, needs no MIMIC data, downloads or GPU, and finishes in about 30 seconds on CPU (its metrics are meaningless):
+
+```bash
+bash experiment/smoke_test.bash
+```
+
 ### Step 1: Download External Resources
 
 `download.sh` fetches everything that is not stored in this repository and puts it where the code expects it. Existing files are skipped.
@@ -77,6 +98,25 @@ python data_process.py
 
 Run from the repository root. Intermediate files go to `data/mimic3/handled/`, datasets and drug embeddings to `data/mimic3/l_data/`.
 
+It produces `atc3toSMILES.pkl`, `ddi_A_final.pkl` and `drug_embeddings.pt` (ChemBERTa). It also writes `*_atc_hierarchy.json`, which uses a different hierarchy definition; training uses the provided `*_atc_hierarchy2.json`.
+
+#### Process locally, train in the cloud
+
+Preprocessing runs fine on a CPU machine, so the raw MIMIC tables never need to leave it. Only the processed files (about 2.5MB compressed without `drug-DDI.csv`) go to the GPU instance:
+
+```bash
+# local machine (Windows: run the .sh scripts in Git Bash or WSL)
+bash download.sh aux
+python data_process.py
+python scripts/pack_for_cloud.py            # -> hadrec_cloud_data.tar.gz (add --skip_ddi to leave out drug-DDI.csv)
+
+# cloud GPU instance, in the repository root
+python scripts/pack_for_cloud.py --verify hadrec_cloud_data.tar.gz && tar xzf hadrec_cloud_data.tar.gz
+bash download.sh models
+```
+
+The archive contains MIMIC-derived data: upload it only to private instances you control, never to public repositories, images or shared storage. If `drug-DDI.csv` is left out, copy `results/` back and run the final evaluation locally.
+
 ### Step 4: Train Model with LoRA
 
 ```bash
@@ -84,6 +124,14 @@ bash experiment/llm_cls.bash
 ```
 
 The script trains, then predicts on the test and validation sets (`results/atc_hierarchy2/`, `results/atc_hierarchy2_val/`). Paths can be overridden with `MODEL_NAME_OR_PATH=... DATA_DIR=...`.
+
+These predictions use the final checkpoint. To choose the checkpoint on the validation set instead (never on the test set), run:
+
+```bash
+bash experiment/select_checkpoint.bash
+```
+
+It predicts every saved checkpoint on the validation set, writes `results/atc_hierarchy2_checkpoint_comparison.csv`, and then writes the best checkpoint's test and validation predictions to the same locations as above.
 
 ---
 
@@ -150,12 +198,19 @@ results/                                  # predictions (not in git)
 ├── generators/
 │   └── data.py                        # EHRTokenizer, vocabulary
 ├── experiment/
-│   └── llm_cls.bash                   # Training script
+│   ├── llm_cls.bash                   # Training script
+│   ├── select_checkpoint.bash         # Validation-based checkpoint selection
+│   └── smoke_test.bash                # End-to-end smoke test
 ├── saved/
 │   └── lora-atc_hierarchy2/
 │       └── checkpoint-5000/           # Best checkpoint
 ├── results/
 ├── download.sh                        # Fetch external resources
+├── requirements.txt / Dockerfile      # Pinned environment
+├── scripts/
+│   ├── pack_for_cloud.py              # Bundle processed data for upload
+│   ├── compare_checkpoints.py         # Validation metrics per checkpoint
+│   └── smoke_test/prepare.py          # Synthetic data + tiny model
 ├── data_process.py                    # Preprocessing pipeline
 ├── main_llm_cls.py                    # Main training/inference
 ├── final_evaluation_with_bootstrap.py # Evaluation

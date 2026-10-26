@@ -1,0 +1,14 @@
+# 镜像只含代码；数据（含 MIMIC 衍生数据）与权重运行时挂载，避免随镜像传播
+.git
+**/__pycache__
+data/mimic3/raw
+data/mimic3/auxiliary
+data/mimic3/handled
+data/mimic3/l_data
+data/mimic3/utils.py
+resources
+saved
+results
+final_evaluation_results
+smoke
+*.tar.gz

@@ -23,3 +23,7 @@ final_evaluation_results/
 
 # 冒烟测试产物
 smoke/
+
+# 云端上传包
+hadrec_cloud_data.tar.gz
+hadrec_cloud_manifest.json
