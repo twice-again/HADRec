@@ -36,61 +36,64 @@ Each line is a training sample:
 
 ### `drug_embeddings.pt`
 
-PyTorch tensor file storing molecular drug embeddings:
+PyTorch file storing molecular drug embeddings, keyed by ATC code:
 
 ```python
-# Shape: (num_drugs, embedding_dim)
-# Generated from drug SMILES strings using molecular fingerprints
-drug_embeddings = torch.load('data/mimic3/l_data/drug_embeddings.pt')
+# {"atc4_embeddings": Tensor(num_drugs, 384), "atc4_to_idx": {atc: idx}, ...}
+# Generated from drug SMILES strings with ChemBERTa (DeepChem/ChemBERTa-77M-MLM)
+drug_data = torch.load('data/mimic3/l_data/drug_embeddings.pt')
 ```
 
 ---
 
-### Step 1: Download MIMIC-III
+### Step 1: Download External Resources
 
-Apply for access at [MIMIC-III Clinical Database](https://mimic.mit.edu/).
-
-Download and place the following files in `data/mimic3/raw/`:
-- `PRESCRIPTIONS.csv`
-- `DIAGNOSES_ICD.csv`
-- `PROCEDURES_ICD.csv`
-
-### Step 2: Download Auxiliary Files
-
-- **`drug-DDI.csv`**: Download from [GAMENet](https://github.com/sjy1203/GAMENet)
-  - Contains drug-drug interaction pairs and side effects
-  
-- **`drug-atc.csv`**: Download from [GAMENet](https://github.com/sjy1203/GAMENet)
-  - Maps CID (PubChem Compound ID) to ATC codes
-  
-- **`ndc2rxcui.txt`**: Download from [GAMENet](https://github.com/sjy1203/GAMENet)
-  - Maps NDC (National Drug Code) to RXCUI
-  - Named as `ndc2rxnorm_mapping.csv` in the repository
-
-Place all files in `data/mimic3/auxiliary/`.
-
-### Step 3: Preprocess Data
+`download.sh` fetches everything that is not stored in this repository and puts it where the code expects it. Existing files are skipped.
 
 ```bash
-cd data/mimic3
-python construction.py
+bash download.sh aux         # auxiliary mapping files + data/mimic3/utils.py
+bash download.sh models      # LLaMA-7B and ChemBERTa -> resources/
+bash download.sh embeddings  # data/mimic3/l_data/drug_embeddings.pt
 ```
 
+- `drug-DDI.csv` and `drugbank_drugs_info.csv` are hosted on Google Drive (links from [SafeDrug](https://github.com/ycq091044/SafeDrug)); install `gdown` or download them manually into `data/mimic3/auxiliary/`.
+- LLaMA-7B and MIMIC-III are licensed resources and must never be committed to this repository.
 
+### Step 2: Download MIMIC-III (only needed to rebuild the dataset)
 
-### Step 4: Run Train Model with LoRA
+Apply for access at [MIMIC-III Clinical Database](https://physionet.org/content/mimiciii/1.4/), then either run
+
+```bash
+PHYSIONET_USER=<your_username> bash download.sh mimic
+```
+
+or unzip `PRESCRIPTIONS`, `DIAGNOSES_ICD`, `PROCEDURES_ICD`, `ADMISSIONS`, `D_ICD_DIAGNOSES`, `D_ICD_PROCEDURES` (`.csv`) into `data/mimic3/raw/`.
+
+### Step 3: Preprocess Data (optional)
+
+```bash
+python data_process.py
+```
+
+Run from the repository root. Intermediate files go to `data/mimic3/handled/`, datasets and drug embeddings to `data/mimic3/l_data/`.
+
+### Step 4: Train Model with LoRA
 
 ```bash
 bash experiment/llm_cls.bash
 ```
 
+The script trains, then predicts on the test and validation sets (`results/atc_hierarchy2/`, `results/atc_hierarchy2_val/`). Paths can be overridden with `MODEL_NAME_OR_PATH=... DATA_DIR=...`.
+
 ---
 
-### Step 5:  Evaluate on Test Set
+### Step 5: Evaluate on Test Set
 
 ```bash
 python final_evaluation_with_bootstrap.py
 ```
+
+All input paths have defaults matching the layout below and can be changed with command-line flags (`--help`).
 
 
 
@@ -99,22 +102,33 @@ python final_evaluation_with_bootstrap.py
 ### File Structure
 
 ```text
-data/
-└── mimic3/
-    ├── raw/                           # Raw MIMIC-III data
-    │   ├── PRESCRIPTIONS.csv          # Medication prescriptions
-    │   ├── DIAGNOSES_ICD.csv          # ICD-9 diagnoses
-    │   └── PROCEDURES_ICD.csv         # ICD-9 procedures
-    ├── auxiliary/                     # Auxiliary files
-    │   ├── drug-DDI.csv               # Drug-drug interactions (from GAMENet)
-    │   ├── drug-atc.csv               # CID to ATC mapping (from GAMENet)
-    │   ├── ndc2rxcui.txt              # NDC to RXCUI mapping
-    │   └── idx2SMILES.pkl             # Drug index to SMILES strings
-    └── l_data/                        # Preprocessed data (generated)
-        ├── train_atc_hierarchy2.json  # Training set
-        ├── val_atc_hierarchy2.json    # Validation set
-        ├── test_atc_hierarchy2.json   # Test set
-        └── drug_embeddings.pt         # Molecular drug embeddings
+data/mimic3/
+├── raw/                           # MIMIC-III tables (not in git, PhysioNet license)
+│   ├── PRESCRIPTIONS.csv  DIAGNOSES_ICD.csv  PROCEDURES_ICD.csv
+│   └── ADMISSIONS.csv  D_ICD_DIAGNOSES.csv  D_ICD_PROCEDURES.csv
+├── auxiliary/                     # download.sh aux (not in git)
+│   ├── drug-DDI.csv               # drug-drug interactions (Google Drive, via SafeDrug)
+│   ├── drug-atc.csv               # CID -> ATC
+│   ├── ndc2RXCUI.txt              # NDC -> RXCUI
+│   ├── RXCUI2atc4.csv             # RXCUI -> ATC
+│   ├── drugbank_drugs_info.csv    # drug name -> SMILES (Google Drive, via SafeDrug)
+│   └── WHO ATC-DDD 2021-12-03.csv # ATC code -> drug name
+├── utils.py                       # preprocessing helpers (download.sh aux, from LEADER)
+├── construction.py                # legacy LEADER-format preprocessing
+├── handled/                       # intermediate outputs (not in git)
+│   ├── atc3toSMILES.pkl
+│   ├── ddi_A_final.pkl
+│   └── atc4_vocab.pkl             # optional, used by the bootstrap DDI evaluation
+└── l_data/
+    ├── train_atc_hierarchy2.json  # training set
+    ├── val_atc_hierarchy2.json    # validation set
+    ├── test_atc_hierarchy2.json   # test set
+    └── drug_embeddings.pt         # molecular drug embeddings
+resources/                         # model weights (not in git)
+├── llama-7b/
+└── ChemBERTa-77M-MLM/
+saved/lora-atc_hierarchy2/checkpoint-*/   # LoRA checkpoints (not in git)
+results/                                  # predictions (not in git)
 ```
 
 
@@ -126,6 +140,7 @@ data/
 │   └── mimic3/
 │       ├── raw/
 │       ├── auxiliary/
+│       ├── handled/
 │       └── l_data/
 ├── llm/
 │   ├── llama.py                       # LLaMA with hierarchical head
@@ -140,6 +155,8 @@ data/
 │   └── lora-atc_hierarchy2/
 │       └── checkpoint-5000/           # Best checkpoint
 ├── results/
+├── download.sh                        # Fetch external resources
+├── data_process.py                    # Preprocessing pipeline
 ├── main_llm_cls.py                    # Main training/inference
 ├── final_evaluation_with_bootstrap.py # Evaluation
 └── README.md

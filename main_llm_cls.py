@@ -46,7 +46,6 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 # 导入Qwen模型
 from llm.llama import LlamaForMedRec
-from llm.qwen import QwenForMedRec
 from llm.trainer_seq2seq import MedRecTrainer
 from llm.lora_cls import PeftModelForCLS
 from llm.arguments import DataTrainingArguments, ModelArguments

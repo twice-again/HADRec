@@ -535,14 +535,25 @@ def bootstrap_evaluation(pred_probs, true_labels, atc4_list_ehr, atc4_list_pkl, 
 
 def main():
     # ==================== 配置 ====================
-    TEST_PRED_FILE = "results主实验/checkpoint-5000/test_predictions.json"
-    TRAIN_FILE = "data/mimic3/l_data/train_atc_hierarchy2.json"
-    DRUG_EMBEDDING_FILE = "data/mimic3/l_data/drug_embeddings2.pt"
-    VOCAB_PKL_FILE = "data/mimic3/data/handled/atc4_vocab.pkl"  # 新增：PKL 词汇表
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test_pred_file", default="results/atc_hierarchy2/test_predictions.json")
+    parser.add_argument("--val_pred_file", default="results/atc_hierarchy2_val/test_predictions.json")
+    parser.add_argument("--train_file", default="data/mimic3/l_data/train_atc_hierarchy2.json")
+    parser.add_argument("--drug_embedding_file", default="data/mimic3/l_data/drug_embeddings.pt")
+    parser.add_argument("--vocab_pkl_file", default="data/mimic3/handled/atc4_vocab.pkl")
+    parser.add_argument("--ddi_file", default="data/mimic3/auxiliary/drug-DDI.csv")
+    parser.add_argument("--drug_atc_file", default="data/mimic3/auxiliary/drug-atc.csv")
+    args = parser.parse_args()
+
+    TEST_PRED_FILE = args.test_pred_file
+    TRAIN_FILE = args.train_file
+    DRUG_EMBEDDING_FILE = args.drug_embedding_file
+    VOCAB_PKL_FILE = args.vocab_pkl_file  # 新增：PKL 词汇表
     
     # DDI 相关文件
-    DDI_FILE = "data/mimic3/auxiliary/drug-DDI.csv"
-    DRUG_ATC_FILE = "data/mimic3/auxiliary/drug-atc.csv"
+    DDI_FILE = args.ddi_file
+    DRUG_ATC_FILE = args.drug_atc_file
     
     THRESHOLD = 0.35  # 全局动态阈值
     OUTPUT_DIR = "final_evaluation_results"
@@ -563,9 +574,14 @@ def main():
     
     # ==================== 加载 PKL 词汇表 ====================
     print("\n📚 加载 PKL 词汇表（用于 DDI）...")
-    with open(VOCAB_PKL_FILE, "rb") as f:
-        vocab_pkl = dill.load(f)
-    atc4_list_pkl = vocab_pkl["atc4_list"]
+    if os.path.exists(VOCAB_PKL_FILE):
+        with open(VOCAB_PKL_FILE, "rb") as f:
+            vocab_pkl = dill.load(f)
+        atc4_list_pkl = vocab_pkl["atc4_list"]
+    else:
+        # 仓库中没有生成 atc4_vocab.pkl 的脚本；缺失时改用与预测索引一致的 EHRTokenizer 词表
+        print(f"⚠️ 未找到 {VOCAB_PKL_FILE}，DDI 改用 EHRTokenizer 词汇表")
+        atc4_list_pkl = atc4_list_ehr
     print(f"L4 词汇表大小: {len(atc4_list_pkl)}")
     print(f"前 10 个: {atc4_list_pkl[:10]}")
     
@@ -574,7 +590,7 @@ def main():
     
     # ==================== 加载验证集（用于优化每个药物的阈值）====================
     print("\n📂 加载验证集...")
-    VAL_PRED_FILE = "results/validation_checkpoint-5000/test_predictions.json"
+    VAL_PRED_FILE = args.val_pred_file
     
     if os.path.exists(VAL_PRED_FILE):
         val_probs, val_labels, _ = load_predictions_and_labels(VAL_PRED_FILE, ehr_tokenizer)

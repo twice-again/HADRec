@@ -91,8 +91,8 @@ def main():
         epilog="""
 示例用法:
   python scripts/precompute_from_pkl.py \\
-      --pkl_file data/mimic3/idx2SMILES.pkl \\
-      --output_file data/handled/drug_embeddings.pt
+      --pkl_file data/mimic3/handled/atc3toSMILES.pkl \\
+      --output_file data/mimic3/l_data/drug_embeddings.pt
         """
     )
     

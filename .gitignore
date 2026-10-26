@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+
+# MIMIC-III 原始表：受 PhysioNet 数据使用协议约束，禁止再分发
+data/mimic3/raw/*
+!data/mimic3/raw/.gitkeep
+
+# 外部辅助文件：由 download.sh 下载
+data/mimic3/auxiliary/*
+!data/mimic3/auxiliary/.gitkeep
+data/mimic3/utils.py
+
+# 预处理中间产物
+data/mimic3/handled/*
+!data/mimic3/handled/.gitkeep
+
+# 模型权重、训练输出与评估结果
+resources/
+saved/
+results/
+final_evaluation_results/

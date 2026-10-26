@@ -5,24 +5,24 @@ import pandas as pd
 from utils import *  # 你的工具函数，比如 med_process、codeMapping2atc4 等
 
 # ========== Step 0: 配置文件路径 ==========
-base_dir = ""  # 你的数据根目录，或者留空表示当前目录
+base_dir = os.path.dirname(os.path.abspath(__file__))  # data/mimic3
 
 # 原始数据路径
-med_file = os.path.join(base_dir, "H:/mimic/PRESCRIPTIONS.csv")
-diag_file = os.path.join(base_dir, "H:/mimic/DIAGNOSES_ICD.csv")
-procedure_file = os.path.join(base_dir, "H:/mimic/PROCEDURES_ICD.csv")
-admission_file = os.path.join(base_dir, "H:/mimic/ADMISSIONS.csv")
+med_file = os.path.join(base_dir, "raw/PRESCRIPTIONS.csv")
+diag_file = os.path.join(base_dir, "raw/DIAGNOSES_ICD.csv")
+procedure_file = os.path.join(base_dir, "raw/PROCEDURES_ICD.csv")
+admission_file = os.path.join(base_dir, "raw/ADMISSIONS.csv")
 
 # 辅助文件路径
-RXCUI2atc4_file = os.path.join(base_dir, "./auxiliary/RXCUI2atc4.csv")
-cid2atc6_file = os.path.join(base_dir, "./auxiliary/drug-atc.csv")
-ndc2RXCUI_file = os.path.join(base_dir, "./auxiliary/ndc2RXCUI.txt")
-ddi_file = os.path.join(base_dir, "./auxiliary/drug-DDI.csv")
-drugbankinfo = os.path.join(base_dir, "./auxiliary/drugbank_drugs_info.csv")
-atc2drug_file = os.path.join(base_dir, "./auxiliary/WHO ATC-DDD 2021-12-03.csv")
+RXCUI2atc4_file = os.path.join(base_dir, "auxiliary/RXCUI2atc4.csv")
+cid2atc6_file = os.path.join(base_dir, "auxiliary/drug-atc.csv")
+ndc2RXCUI_file = os.path.join(base_dir, "auxiliary/ndc2RXCUI.txt")
+ddi_file = os.path.join(base_dir, "auxiliary/drug-DDI.csv")
+drugbankinfo = os.path.join(base_dir, "auxiliary/drugbank_drugs_info.csv")
+atc2drug_file = os.path.join(base_dir, "auxiliary/WHO ATC-DDD 2021-12-03.csv")
 
 # 输出路径
-file_path = os.path.join(base_dir, "./handled/")
+file_path = os.path.join(base_dir, "handled/")
 os.makedirs(file_path, exist_ok=True)
 os.makedirs(os.path.join(file_path, "full"), exist_ok=True)
 
@@ -113,9 +113,9 @@ atc2drug_df.drop(columns=["ddd", "uom", "adm_r", "note"], inplace=True)
 atc2drug_df["atc_name"] = atc2drug_df["atc_name"].map(lambda x: x.lower())
 atc2drug_dict = dict(zip(atc2drug_df["ATC4"], atc2drug_df["atc_name"]))
 
-icd2diag_df = pd.read_csv(os.path.join(base_dir, "H:/mimic/D_ICD_DIAGNOSES.csv"))
+icd2diag_df = pd.read_csv(os.path.join(base_dir, "raw/D_ICD_DIAGNOSES.csv"))
 icd2diag_dict = dict(zip(icd2diag_df["ICD9_CODE"].astype(str), icd2diag_df["SHORT_TITLE"]))
-icd2proc_df = pd.read_csv(os.path.join(base_dir, "H:/mimic/D_ICD_PROCEDURES.csv"))
+icd2proc_df = pd.read_csv(os.path.join(base_dir, "raw/D_ICD_PROCEDURES.csv"))
 icd2proc_dict = dict(zip(icd2proc_df["ICD9_CODE"].astype(str), icd2proc_df["SHORT_TITLE"]))
 
 def decode(code_list, decoder):

@@ -14,7 +14,7 @@ def np_sigmoid(x):
     return 1 / (1 + np.exp(-x))
 
 
-def evaluate_jsonlines(data_path, ehr_tokenizer, threshold=0.4, ddi_path='./data/handled/'):
+def evaluate_jsonlines(data_path, ehr_tokenizer, threshold=0.4, ddi_path='data/mimic3/handled/'):
     """
     评估预测结果（使用L4层级词汇表，与层级独立评估保持一致）
 

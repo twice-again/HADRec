@@ -16,8 +16,8 @@ lora_trainable="q_proj,k_proj,v_proj,o_proj,down_proj,gate_proj,up_proj"
 modules_to_save="null"
 lora_dropout=0.1
 LR=2e-4
-model_name_or_path="/mnt/data/833/wjk/huggyllama"
-your_data_path="/mnt/data/833/wjk/LEADER-pytorch-master0.5/data/mimic3/l_data"
+model_name_or_path="${MODEL_NAME_OR_PATH:-resources/llama-7b}"
+your_data_path="${DATA_DIR:-data/mimic3/l_data}"
 your_checkpopint_path="saved"
 MAX_STEPS=5000
 MASTER_PORT=$(shuf -n 1 -i 10000-65535)
@@ -90,7 +90,7 @@ if [ -z "$final_step" ] || [ $final_step -lt $MAX_STEPS ]; then
         --balance_strategy combined \
         --use_cross_attention \
         --cross_threshold 0.1 \
-        --drug_embedding_file /mnt/data/833/wjk/LEADER-pytorch-master0.5/data/mimic3/l_data/drug_embeddings.pt \
+        --drug_embedding_file $your_data_path/drug_embeddings.pt \
         $resume_arg
     
     echo ""

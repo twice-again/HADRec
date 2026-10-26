@@ -13,7 +13,7 @@ import torch
 from collections import Counter, defaultdict
 
 # 导入工具函数
-sys.path.append(os.path.join(os.path.dirname(__file__), "data/mimic3"))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "data/mimic3"))  # 置于首位，避免被根目录 utils/ 包遮蔽
 from utils import (
     med_process, diag_process, procedure_process, combine_process,
     codeMapping2atc4, filter_300_most_med, process_visit_lg2,
@@ -22,34 +22,38 @@ from utils import (
 
 # ========== Step 0: 路径与参数 ==========
 base_dir = ""
-output_dir = os.path.join(base_dir, "./data/handled/")
+raw_dir = os.path.join(base_dir, "data/mimic3/raw")
+aux_dir = os.path.join(base_dir, "data/mimic3/auxiliary")
+output_dir = os.path.join(base_dir, "data/mimic3/handled/")  # 中间产物
+l_data_dir = os.path.join(base_dir, "data/mimic3/l_data/")  # 训练数据与药物嵌入
 os.makedirs(output_dir, exist_ok=True)
+os.makedirs(l_data_dir, exist_ok=True)
 
 # Mimic原始表路径，不变
-med_file = os.path.join(base_dir, "H:/mimic/PRESCRIPTIONS.csv")
-diag_file = os.path.join(base_dir, "H:/mimic/DIAGNOSES_ICD.csv")
-procedure_file = os.path.join(base_dir, "H:/mimic/PROCEDURES_ICD.csv")
-admission_file = os.path.join(base_dir, "H:/mimic/ADMISSIONS.csv")
+med_file = os.path.join(raw_dir, "PRESCRIPTIONS.csv")
+diag_file = os.path.join(raw_dir, "DIAGNOSES_ICD.csv")
+procedure_file = os.path.join(raw_dir, "PROCEDURES_ICD.csv")
+admission_file = os.path.join(raw_dir, "ADMISSIONS.csv")
 
 # 辅助文件路径
-RXCUI2atc4_file = os.path.join(base_dir, "./auxiliary/RXCUI2atc4.csv")
-cid2atc6_file = os.path.join(base_dir, "./auxiliary/drug-atc.csv")
-ndc2RXCUI_file = os.path.join(base_dir, "./auxiliary/ndc2RXCUI.txt")
-drugbankinfo = os.path.join(base_dir, "./auxiliary/drugbank_drugs_info.csv")
-atc2drug_file = os.path.join(base_dir, "./auxiliary/WHO ATC-DDD 2021-12-03.csv")
-ddi_file = os.path.join(base_dir, "./auxiliary/drug-DDI.csv")  # DDI文件路径
+RXCUI2atc4_file = os.path.join(aux_dir, "RXCUI2atc4.csv")
+cid2atc6_file = os.path.join(aux_dir, "drug-atc.csv")
+ndc2RXCUI_file = os.path.join(aux_dir, "ndc2RXCUI.txt")
+drugbankinfo = os.path.join(aux_dir, "drugbank_drugs_info.csv")
+atc2drug_file = os.path.join(aux_dir, "WHO ATC-DDD 2021-12-03.csv")
+ddi_file = os.path.join(aux_dir, "drug-DDI.csv")  # DDI文件路径
 
 # ICD映射文件
-icd2diag_file = os.path.join(base_dir, "H:/mimic/D_ICD_DIAGNOSES.csv")
-icd2proc_file = os.path.join(base_dir, "H:/mimic/D_ICD_PROCEDURES.csv")
+icd2diag_file = os.path.join(raw_dir, "D_ICD_DIAGNOSES.csv")
+icd2proc_file = os.path.join(raw_dir, "D_ICD_PROCEDURES.csv")
 
 # 输出文件路径
 atc3toSMILES_file = os.path.join(output_dir, "atc3toSMILES.pkl")
-drug_embedding_pt = os.path.join(output_dir, "drug_embeddings.pt")
+drug_embedding_pt = os.path.join(l_data_dir, "drug_embeddings.pt")
 ddi_adjacency_file = os.path.join(output_dir, "ddi_A_final.pkl")  # DDI邻接矩阵文件
-TRAIN_FILE = os.path.join(output_dir, "train_atc_hierarchy.json")
-VAL_FILE = os.path.join(output_dir, "val_atc_hierarchy.json")
-TEST_FILE = os.path.join(output_dir, "test_atc_hierarchy.json")
+TRAIN_FILE = os.path.join(l_data_dir, "train_atc_hierarchy.json")
+VAL_FILE = os.path.join(l_data_dir, "val_atc_hierarchy.json")
+TEST_FILE = os.path.join(l_data_dir, "test_atc_hierarchy.json")
 
 # ========== Step 1: 处理药物数据 ==========
 print("=" * 70)
