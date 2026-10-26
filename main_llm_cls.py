@@ -330,6 +330,8 @@ def train():
     ## Load Model ##
     # 先加载基础模型到CPU，避免CUDA内存不足
     print(f"🔍 检测模型路径: {model_args.model_name_or_path}")
+    # GPU 上保持原来的 FP16；CPU 缺少部分 FP16 算子（如冒烟测试），改用 FP32
+    model_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
     
     # 🔹 根据路径自动选择模型类型
     if "qwen" in model_args.model_name_or_path.lower():
@@ -352,7 +354,7 @@ def train():
             drug_embedding_file=model_args.drug_embedding_file,
             hierarchical_prediction=model_args.hierarchical_prediction,
             trust_remote_code=True,
-            torch_dtype=torch.float16,  # FP16 训练
+            torch_dtype=model_dtype,  # FP16 训练
             low_cpu_mem_usage=False,    # ZeRO-3 要求
         )
     else:
@@ -375,7 +377,7 @@ def train():
             drug_embedding_file=model_args.drug_embedding_file,
             hierarchical_prediction=model_args.hierarchical_prediction,
             trust_remote_code=True,
-            torch_dtype=torch.float16,  # FP16 训练
+            torch_dtype=model_dtype,  # FP16 训练
             low_cpu_mem_usage=False,    # ZeRO-3 要求
         )
     
@@ -397,7 +399,7 @@ def train():
     
     # ✅ 使用 DeepSpeed ZeRO-3 + FP16，先不移动到 GPU，让 DeepSpeed 自动管理
     # 保持模型在 CPU，DeepSpeed 会按需加载到 GPU 并转换为 FP16
-    base_model = base_model.half()  # FP16 训练（更快，省显存）
+    base_model = base_model.to(model_dtype)  # FP16 训练（更快，省显存）
     print("✅ 模型保持在 CPU (FP16)，等待 DeepSpeed ZeRO-3 管理显存")
     
     # 清理CPU内存
@@ -925,7 +927,7 @@ def analyze_hierarchical_predictions(hierarchical_predictions, test_samples, ehr
                 true_labels = sample.get(f"atc_level_{level[-1]}", [])
                 
                 # 获取预测的top-k结果
-                top_k = 10
+                top_k = min(10, pred_probs.shape[1])
                 top_indices = torch.topk(pred_probs[i], k=top_k).indices
                 top_probs = torch.topk(pred_probs[i], k=top_k).values
                 

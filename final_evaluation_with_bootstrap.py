@@ -544,6 +544,7 @@ def main():
     parser.add_argument("--vocab_pkl_file", default="data/mimic3/handled/atc4_vocab.pkl")
     parser.add_argument("--ddi_file", default="data/mimic3/auxiliary/drug-DDI.csv")
     parser.add_argument("--drug_atc_file", default="data/mimic3/auxiliary/drug-atc.csv")
+    parser.add_argument("--output_dir", default="final_evaluation_results")
     args = parser.parse_args()
 
     TEST_PRED_FILE = args.test_pred_file
@@ -556,7 +557,7 @@ def main():
     DRUG_ATC_FILE = args.drug_atc_file
     
     THRESHOLD = 0.35  # 全局动态阈值
-    OUTPUT_DIR = "final_evaluation_results"
+    OUTPUT_DIR = args.output_dir
     
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     

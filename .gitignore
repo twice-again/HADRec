@@ -20,3 +20,6 @@ resources/
 saved/
 results/
 final_evaluation_results/
+
+# 冒烟测试产物
+smoke/
