@@ -98,47 +98,39 @@ if [ -z "$final_step" ] || [ $final_step -lt $MAX_STEPS ]; then
     echo ""
 fi
 
-# ============= Step 2: 测试所有checkpoints =============
+# ============= Step 2: 按验证集选 checkpoint 并预测测试集 =============
 echo ""
-echo "📝 Step 2/3: 测试所有checkpoints"
+echo "📝 Step 2/3: 按验证集选 checkpoint 并预测测试集"
 echo "========================================"
 echo ""
 
-bash experiment/test_all_checkpoints.bash
+MODEL_NAME_OR_PATH=$model_name_or_path DATA_DIR=$your_data_path CKPT_ROOT=$your_checkpopint_path \
+DATE=$date MAX_SOURCE_LENGTH=$MAX_SOURCE_LENGTH \
+    bash experiment/select_checkpoint.bash
+best_checkpoint=$(cat results/${date}_best_checkpoint.txt)
 
 echo ""
 echo "✅ 测试完成"
 echo ""
 
-# ============= Step 3: 生成可视化 =============
+# ============= Step 3: 生成可视化（可选，脚本未随仓库提供）=============
 echo ""
 echo "📝 Step 3/3: 生成可视化"
 echo "========================================"
 echo ""
 
-# 找出最佳checkpoint
-best_checkpoint=$(tail -n +2 checkpoint_comparison.csv | sort -t',' -k13 -rn | head -n1 | cut -d',' -f1)
+if [ -f visualize_real_attention.py ] && [ -f advanced_visualization.py ]; then
+    echo "生成真实注意力可视化..."
+    python visualize_real_attention.py results/${date}/test_predictions.json
 
-if [ -n "$best_checkpoint" ]; then
-    echo "🏆 最佳checkpoint: ${best_checkpoint}"
     echo ""
-    
-    # 生成可视化
-    if [ -f "results/${best_checkpoint}/test_predictions.json" ]; then
-        echo "生成真实注意力可视化..."
-        python visualize_real_attention.py results/${best_checkpoint}/test_predictions.json
-        
-        echo ""
-        echo "生成深度分析图表..."
-        python advanced_visualization.py
-        
-        echo ""
-        echo "✅ 可视化完成"
-    else
-        echo "⚠️  未找到预测文件: results/${best_checkpoint}/test_predictions.json"
-    fi
+    echo "生成深度分析图表..."
+    python advanced_visualization.py
+
+    echo ""
+    echo "✅ 可视化完成"
 else
-    echo "⚠️  未找到最佳checkpoint"
+    echo "⚠️  未找到可视化脚本，跳过（不影响评估指标）"
 fi
 
 # ============= 最终总结 =============
@@ -149,26 +141,14 @@ echo "========================================"
 echo ""
 
 echo "📊 结果文件:"
-echo "   - checkpoint_comparison.csv (所有checkpoint性能)"
-echo "   - checkpoint_comparison.txt (详细报告)"
-echo ""
-
-echo "📈 可视化图表:"
-echo "   - visualizations/real_attention_sample*.png (真实注意力热图)"
-echo "   - visualizations/real_attention_entropy.png (注意力熵值分布)"
-echo "   - visualizations/fig1-6_*.png (深度分析图表)"
+echo "   - results/${date}_checkpoint_comparison.csv (各 checkpoint 验证集性能)"
+echo "   - results/${date}/test_predictions.json (最佳 checkpoint 测试集预测)"
+echo "   - results/${date}_val/test_predictions.json (最佳 checkpoint 验证集预测)"
 echo ""
 
 echo "💡 下一步:"
-echo "   1. 查看最佳模型: cat checkpoint_comparison.txt | grep '最佳'"
-echo "   2. 查看图表: ls visualizations/*.png"
-echo "   3. 分析结果: python -c 'import pandas as pd; df=pd.read_csv(\"checkpoint_comparison.csv\"); print(df.sort_values(\"L4_Jaccard\", ascending=False).head())'"
+echo "   python final_evaluation_with_bootstrap.py"
 echo ""
 
-echo "🎯 快速查看:"
-if [ -n "$best_checkpoint" ]; then
-    echo "   最佳checkpoint: ${best_checkpoint}"
-    best_jaccard=$(grep "^${best_checkpoint}," checkpoint_comparison.csv | cut -d',' -f13)
-    echo "   L4 Jaccard: ${best_jaccard}"
-fi
+echo "🎯 验证集最佳checkpoint: ${best_checkpoint}"
 echo ""
