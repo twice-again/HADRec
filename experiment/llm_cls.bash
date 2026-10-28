@@ -8,7 +8,9 @@ your_data_path="${DATA_DIR:-data/mimic3/l_data}"  # 填入数据集所在的文�
 your_checkpopint_path="saved"  # 填入用来存储模型的路径
 MAX_STEPS=5000  # 训练5000步，每200步保存checkpoint，训练后测试所有checkpoint找最佳
 MASTER_PORT=$(shuf -n 1 -i 10000-65535)
-date="atc_hierarchy2"
+date="${RUN_NAME:-atc_hierarchy2}"
+# 按论文修正: RUN_NAME=atc_hierarchy2_paper EXTRA_ARGS="--train_fusion_modules" bash experiment/llm_cls.bash
+EXTRA_ARGS="${EXTRA_ARGS:-}"
 MAX_SOURCE_LENGTH=2048
 
 peft_path=""  # 如果之前训练过，且存储了peft权重，则设置为peft权重的文件夹路径
@@ -48,7 +50,8 @@ deepspeed --num_gpus=1 --master_port $MASTER_PORT main_llm_cls.py \
     --balance_strategy combined \
     --use_cross_attention \
     --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt
+    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $EXTRA_ARGS
 
 # Testing Command
 # Testing Command - 移除 deepspeed
@@ -70,7 +73,8 @@ CUDA_VISIBLE_DEVICES=0 python main_llm_cls.py \
     --hierarchical_prediction \
     --use_cross_attention \
     --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt
+    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $EXTRA_ARGS
 
 # Validation Prediction - 供 final_evaluation_with_bootstrap.py 在验证集上调每个药物的阈值
 CUDA_VISIBLE_DEVICES=0 python main_llm_cls.py \
@@ -91,4 +95,5 @@ CUDA_VISIBLE_DEVICES=0 python main_llm_cls.py \
     --hierarchical_prediction \
     --use_cross_attention \
     --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt
+    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $EXTRA_ARGS

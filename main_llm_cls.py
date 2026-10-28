@@ -47,7 +47,7 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 # 导入Qwen模型
 from llm.llama import LlamaForMedRec
 from llm.trainer_seq2seq import MedRecTrainer
-from llm.lora_cls import PeftModelForCLS
+from llm.lora_cls import PeftModelForCLS, FUSION_MODULE_KEYS
 from llm.arguments import DataTrainingArguments, ModelArguments
 from llm.data_processor.llama import llama_train_cls, llama_eval_cls, apply_balancing_strategy
 from llm.data_processor.collator import LongestSequenceCollator
@@ -464,6 +464,8 @@ def train():
     if training_args.do_train:
         for name, param in model.named_parameters():
             if "cls_head" in name:
+                param.requires_grad = True
+            elif model_args.train_fusion_modules and any(m in name for m in FUSION_MODULE_KEYS):
                 param.requires_grad = True
     model.print_trainable_parameters()
 

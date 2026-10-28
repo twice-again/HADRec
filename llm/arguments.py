@@ -89,6 +89,11 @@ class ModelArguments:
         default=None,
         metadata={"help": "预计算的药物嵌入文件路径（.pt格式）。如果提供，自动启用药物知识融合"}
     )
+    train_fusion_modules: Optional[bool] = field(
+        default=False,
+        metadata={"help": "按论文修正：训练并保存层级 cross-attention、残差归一化和药物知识模块。"
+                          "默认 False 与原代码一致（这些层保持随机初始化且不保存）"}
+    )
 
 
 @dataclass

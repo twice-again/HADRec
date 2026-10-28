@@ -12,6 +12,18 @@ from .peft.peft_model import PeftModelForSequenceClassification
 from .peft.utils import WEIGHTS_NAME, PromptLearningConfig
 
 
+# LoRA 之外新增的融合层：层级 cross-attention、残差归一化、药物知识模块
+# 默认（代码原样）不训练也不保存；--train_fusion_modules 时随 adapter 一起训练、保存和加载
+FUSION_MODULE_KEYS = ("cross_attn_l", "norm_l", "drug_knowledge.")
+
+
+def fusion_state_dict(model):
+    """可训练的融合层参数；融合层冻结时返回空字典"""
+    trainable = {n for n, p in model.named_parameters() if p.requires_grad}
+    return {k: v for k, v in model.state_dict().items()
+            if k in trainable and any(m in k for m in FUSION_MODULE_KEYS)}
+
+
 class PeftModelForCLS(PeftModelForSequenceClassification):
 
     def __init__(self, model, peft_config: PeftConfig, adapter_name="default"):
@@ -40,6 +52,7 @@ class PeftModelForCLS(PeftModelForSequenceClassification):
             output_state_dict = get_peft_model_state_dict(
                 self, state_dict=kwargs.get("state_dict", None), adapter_name=adapter_name
             )
+            output_state_dict.update(fusion_state_dict(self))
             output_dir = os.path.join(save_directory, adapter_name) if adapter_name != "default" else save_directory
             os.makedirs(output_dir, exist_ok=True)
             torch.save(output_state_dict, os.path.join(output_dir, WEIGHTS_NAME))
@@ -128,6 +141,12 @@ class PeftModelForCLS(PeftModelForSequenceClassification):
         )
         # load the weights into the model
         set_peft_model_state_dict(self, adapters_weights, adapter_name=adapter_name)
+        fusion_weights = {k: v for k, v in adapters_weights.items() if any(m in k for m in FUSION_MODULE_KEYS)}
+        if fusion_weights:
+            unexpected = self.load_state_dict(fusion_weights, strict=False).unexpected_keys
+            if unexpected:
+                raise ValueError(f"融合层权重与模型结构不匹配: {unexpected[:5]}")
+            print(f"✅ 已加载 {len(fusion_weights)} 个融合层参数（--train_fusion_modules 训练）")
         if (
             (getattr(self, "hf_device_map", None) is not None)
             and (len(set(self.hf_device_map.values()).intersection({"cpu", "disk"})) > 0)

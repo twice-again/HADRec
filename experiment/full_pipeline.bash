@@ -21,7 +21,8 @@ your_data_path="${DATA_DIR:-data/mimic3/l_data}"
 your_checkpopint_path="saved"
 MAX_STEPS=5000
 MASTER_PORT=$(shuf -n 1 -i 10000-65535)
-date="atc_hierarchy2"
+date="${RUN_NAME:-atc_hierarchy2}"
+EXTRA_ARGS="${EXTRA_ARGS:-}"
 MAX_SOURCE_LENGTH=2048
 
 checkpoint_dir="${your_checkpopint_path}/lora-${date}"
@@ -91,6 +92,7 @@ if [ -z "$final_step" ] || [ $final_step -lt $MAX_STEPS ]; then
         --use_cross_attention \
         --cross_threshold 0.1 \
         --drug_embedding_file $your_data_path/drug_embeddings.pt \
+        $EXTRA_ARGS \
         $resume_arg
     
     echo ""
@@ -105,7 +107,7 @@ echo "========================================"
 echo ""
 
 MODEL_NAME_OR_PATH=$model_name_or_path DATA_DIR=$your_data_path CKPT_ROOT=$your_checkpopint_path \
-DATE=$date MAX_SOURCE_LENGTH=$MAX_SOURCE_LENGTH \
+DATE=$date MAX_SOURCE_LENGTH=$MAX_SOURCE_LENGTH EXTRA_ARGS="$EXTRA_ARGS" \
     bash experiment/select_checkpoint.bash
 best_checkpoint=$(cat results/${date}_best_checkpoint.txt)
 
