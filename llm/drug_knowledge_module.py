@@ -33,7 +33,8 @@ class DrugKnowledgeModule(nn.Module):
         residual_scale: float = 0.5,
         align_weight: float = 0.1,
         enabled: bool = True,
-        voc_l4=None  # ✅ 新增：接收 L4 词汇表用于过滤
+        voc_l4=None,  # ✅ 新增：接收 L4 词汇表用于过滤
+        learnable_scale: bool = False,
     ):
         """
         Args:
@@ -44,11 +45,16 @@ class DrugKnowledgeModule(nn.Module):
             residual_scale: 残差融合的缩放比例
             align_weight: 对齐损失的权重
             enabled: 是否启用药物知识
+            learnable_scale: 论文 Eq.5 的 λ 为可学习参数；默认 False 与原代码一致（固定 residual_scale）
         """
         super().__init__()
         
         self.hidden_size = hidden_size
-        self.residual_scale = residual_scale
+        if learnable_scale:
+            self.residual_scale = nn.Parameter(torch.tensor(float(residual_scale)))
+        else:
+            # 固定值也注册为 buffer：数值不变，且预测时能载入可学习版本训练得到的 λ
+            self.register_buffer("residual_scale", torch.tensor(float(residual_scale)))
         self.align_weight = align_weight
         self.enabled = enabled
         

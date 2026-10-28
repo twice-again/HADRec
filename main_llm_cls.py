@@ -47,7 +47,7 @@ from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 # 导入Qwen模型
 from llm.llama import LlamaForMedRec
 from llm.trainer_seq2seq import MedRecTrainer
-from llm.lora_cls import PeftModelForCLS, FUSION_MODULE_KEYS
+from llm.lora_cls import PeftModelForCLS
 from llm.arguments import DataTrainingArguments, ModelArguments
 from llm.data_processor.llama import llama_train_cls, llama_eval_cls, apply_balancing_strategy
 from llm.data_processor.collator import LongestSequenceCollator
@@ -375,7 +375,12 @@ def train():
             # 🔬 药物知识融合参数
             use_drug_knowledge=(model_args.drug_embedding_file is not None),
             drug_embedding_file=model_args.drug_embedding_file,
+            learnable_fusion_scale=model_args.learnable_fusion_scale,
             hierarchical_prediction=model_args.hierarchical_prediction,
+            bce_weights=[float(x) for x in model_args.bce_weights.split(",")],
+            consistency_weight=model_args.consistency_weight,
+            consistency_level_weights=[float(x) for x in model_args.consistency_level_weights.split(",")],
+            drug_align_weight=model_args.drug_align_weight,
             trust_remote_code=True,
             torch_dtype=model_dtype,  # FP16 训练
             low_cpu_mem_usage=False,    # ZeRO-3 要求
@@ -462,10 +467,17 @@ def train():
         model = PeftModelForCLS(base_model, peft_config)
 
     if training_args.do_train:
+        # 只训练前向中实际用到的融合层（未参与计算的参数没有梯度）
+        used_fusion_keys = []
+        if model_args.train_fusion_modules:
+            if model_args.hierarchical_prediction and model_args.use_cross_attention:
+                used_fusion_keys += ["cross_attn_l", "norm_l"]
+            if model_args.drug_embedding_file is not None:
+                used_fusion_keys += ["drug_knowledge."]
         for name, param in model.named_parameters():
             if "cls_head" in name:
                 param.requires_grad = True
-            elif model_args.train_fusion_modules and any(m in name for m in FUSION_MODULE_KEYS):
+            elif any(m in name for m in used_fusion_keys):
                 param.requires_grad = True
     model.print_trainable_parameters()
 

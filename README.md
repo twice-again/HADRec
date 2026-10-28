@@ -128,11 +128,14 @@ bash experiment/llm_cls.bash
 
 The script trains, then predicts on the test and validation sets (`results/atc_hierarchy2/`, `results/atc_hierarchy2_val/`). Paths can be overridden with `MODEL_NAME_OR_PATH=... DATA_DIR=...`.
 
-To also run the paper-corrected variant, which trains and saves the hierarchical cross-attention, residual norms and drug-knowledge module (in the original code they stay randomly initialised and are not saved), use a separate run name:
+To reproduce the paper's experiments, both with the code as-is and with the paper-corrected configuration (see `docs/paper_vs_code.md` for every difference between the paper and the code), use:
 
 ```bash
-RUN_NAME=atc_hierarchy2_paper EXTRA_ARGS="--train_fusion_modules" bash experiment/llm_cls.bash
+bash experiment/paper_experiments.bash list                    # available experiments
+bash experiment/paper_experiments.bash asis_main paper_main    # main results (Table 4)
 ```
+
+Each experiment trains, predicts, selects the checkpoint on the validation set and runs the bootstrap evaluation.
 
 These predictions use the final checkpoint. To choose the checkpoint on the validation set instead (never on the test set), run:
 
@@ -140,7 +143,7 @@ These predictions use the final checkpoint. To choose the checkpoint on the vali
 bash experiment/select_checkpoint.bash
 ```
 
-(add `DATE=atc_hierarchy2_paper` for the paper-corrected run). It predicts every saved checkpoint on the validation set, writes `results/atc_hierarchy2_checkpoint_comparison.csv`, and then writes the best checkpoint's test and validation predictions to the same locations as above.
+It predicts every saved checkpoint on the validation set, writes `results/atc_hierarchy2_checkpoint_comparison.csv`, and then writes the best checkpoint's test and validation predictions to the same locations as above.
 
 ---
 
@@ -208,6 +211,7 @@ results/                                  # predictions (not in git)
 │   └── data.py                        # EHRTokenizer, vocabulary
 ├── experiment/
 │   ├── llm_cls.bash                   # Training script
+│   ├── paper_experiments.bash         # Paper experiments (as-is / paper-corrected / ablations)
 │   ├── select_checkpoint.bash         # Validation-based checkpoint selection
 │   └── smoke_test.bash                # End-to-end smoke test
 ├── saved/

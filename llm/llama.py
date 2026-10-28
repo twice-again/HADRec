@@ -39,6 +39,12 @@ class LlamaForMedRec(LlamaPreTrainedModel):
         # 是否启用层级预测
         self.hierarchical_prediction = kwargs.pop("hierarchical_prediction", True)
 
+        # 损失权重（默认值为原代码；论文 Table 3 / Eq.14 的取值见 experiment/paper_experiments.bash）
+        self.bce_weights = tuple(kwargs.pop("bce_weights", (0.4, 0.4, 1.0, 1.5)))  # L1-L4
+        self.consistency_weight = float(kwargs.pop("consistency_weight", 0.1))  # λ_cons
+        self.consistency_level_weights = tuple(kwargs.pop("consistency_level_weights", (2.0, 1.5, 1.0)))  # L2-L4
+        self.drug_align_weight = float(kwargs.pop("drug_align_weight", 0.1))
+
         # 分类头
         self.cls_head_l1 = nn.Linear(config.hidden_size, self.med_voc_l1)
         self.cls_head_l2 = nn.Linear(config.hidden_size, self.med_voc_l2)
@@ -62,13 +68,15 @@ class LlamaForMedRec(LlamaPreTrainedModel):
         # 🔬 药物分子知识模块（可选插件）
         use_drug_knowledge = kwargs.pop("use_drug_knowledge", False)
         drug_embedding_file = kwargs.pop("drug_embedding_file", None)
+        learnable_fusion_scale = kwargs.pop("learnable_fusion_scale", False)
         if use_drug_knowledge:
             from llm.drug_knowledge_module import DrugKnowledgeModule
             self.drug_knowledge = DrugKnowledgeModule(
                 hidden_size=config.hidden_size,
                 drug_embedding_file=drug_embedding_file,
                 enabled=True,
-                voc_l4=self.voc_l4  # ✅ 传入词汇表用于过滤嵌入
+                voc_l4=self.voc_l4,  # ✅ 传入词汇表用于过滤嵌入
+                learnable_scale=learnable_fusion_scale,
             )
         else:
             self.drug_knowledge = None
@@ -171,13 +179,14 @@ class LlamaForMedRec(LlamaPreTrainedModel):
         mask_l* are soft in [0,1] now; we scale penalty by (1-mask).
         """
         consistency_loss = 0.0
+        w2, w3, w4 = self.consistency_level_weights
         if mask_l2 is not None:
             # penalize positions where mask ~ 0 but logits high
-            consistency_loss += torch.mean(torch.relu(logits_l2 * (1 - mask_l2))) * 2.0
+            consistency_loss += torch.mean(torch.relu(logits_l2 * (1 - mask_l2))) * w2
         if mask_l3 is not None:
-            consistency_loss += torch.mean(torch.relu(logits_l3 * (1 - mask_l3))) * 1.5
+            consistency_loss += torch.mean(torch.relu(logits_l3 * (1 - mask_l3))) * w3
         if mask_l4 is not None:
-            consistency_loss += torch.mean(torch.relu(logits_l4 * (1 - mask_l4))) * 1.0
+            consistency_loss += torch.mean(torch.relu(logits_l4 * (1 - mask_l4))) * w4
         return consistency_loss
 
     # ---------------- Forward ----------------
@@ -297,18 +306,19 @@ class LlamaForMedRec(LlamaPreTrainedModel):
         loss_terms = []
         if self.hierarchical_prediction:
             # 层级模式：计算所有层的损失
+            b1, b2, b3, b4 = self.bce_weights
             if labels_l1 is not None and logits_l1 is not None:
                 loss_l1 = F.binary_cross_entropy_with_logits(logits_l1, labels_l1.float())
-                loss_terms.append(0.4 * loss_l1)
+                loss_terms.append(b1 * loss_l1)
             if labels_l2 is not None and logits_l2 is not None:
                 loss_l2 = F.binary_cross_entropy_with_logits(logits_l2, labels_l2.float())
-                loss_terms.append(0.4 * loss_l2)
+                loss_terms.append(b2 * loss_l2)
             if labels_l3 is not None and logits_l3 is not None:
                 loss_l3 = F.binary_cross_entropy_with_logits(logits_l3, labels_l3.float())
-                loss_terms.append(1.0 * loss_l3)
+                loss_terms.append(b3 * loss_l3)
             if labels_l4 is not None:
                 loss_l4 = F.binary_cross_entropy_with_logits(logits_l4, labels_l4.float())
-                loss_terms.append(1.5 * loss_l4)
+                loss_terms.append(b4 * loss_l4)
         else:
             # 非层级模式：只计算L4的损失
             if labels_l4 is not None:
@@ -318,9 +328,9 @@ class LlamaForMedRec(LlamaPreTrainedModel):
         if loss_terms:
             total_loss = sum(loss_terms)
             if self.hierarchical_prediction:
-                total_loss = total_loss + 0.1 * consistency_loss
-            if drug_align_loss is not None:
-                total_loss = total_loss + 0.1 * drug_align_loss
+                total_loss = total_loss + self.consistency_weight * consistency_loss
+            if drug_align_loss is not None and self.drug_align_weight != 0:
+                total_loss = total_loss + self.drug_align_weight * drug_align_loss
 
         # 收集注意力权重（用于可视化）
         attention_weights = None

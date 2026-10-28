@@ -9,8 +9,12 @@ your_checkpopint_path="saved"  # 填入用来存储模型的路径
 MAX_STEPS=5000  # 训练5000步，每200步保存checkpoint，训练后测试所有checkpoint找最佳
 MASTER_PORT=$(shuf -n 1 -i 10000-65535)
 date="${RUN_NAME:-atc_hierarchy2}"
-# 按论文修正: RUN_NAME=atc_hierarchy2_paper EXTRA_ARGS="--train_fusion_modules" bash experiment/llm_cls.bash
+# 论文实验（原样 / 按论文修正 / 消融）请用 experiment/paper_experiments.bash
 EXTRA_ARGS="${EXTRA_ARGS:-}"
+# 模型结构参数，训练与预测必须一致；消融实验可整体覆盖（允许设为空）
+if [ -z "${MODEL_ARGS+x}" ]; then
+    MODEL_ARGS="--hierarchical_prediction --use_cross_attention --cross_threshold 0.1 --drug_embedding_file $your_data_path/drug_embeddings.pt"
+fi
 MAX_SOURCE_LENGTH=2048
 
 peft_path=""  # 如果之前训练过，且存储了peft权重，则设置为peft权重的文件夹路径
@@ -46,11 +50,8 @@ deepspeed --num_gpus=1 --master_port $MASTER_PORT main_llm_cls.py \
     --modules_to_save ${modules_to_save} \
     --lora_dropout ${lora_dropout} \
     --fp16 \
-    --hierarchical_prediction \
     --balance_strategy combined \
-    --use_cross_attention \
-    --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $MODEL_ARGS \
     $EXTRA_ARGS
 
 # Testing Command
@@ -70,10 +71,7 @@ CUDA_VISIBLE_DEVICES=0 python main_llm_cls.py \
     --max_source_length $MAX_SOURCE_LENGTH \
     --max_target_length 196 \
     --per_device_eval_batch_size 4 \
-    --hierarchical_prediction \
-    --use_cross_attention \
-    --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $MODEL_ARGS \
     $EXTRA_ARGS
 
 # Validation Prediction - 供 final_evaluation_with_bootstrap.py 在验证集上调每个药物的阈值
@@ -92,8 +90,5 @@ CUDA_VISIBLE_DEVICES=0 python main_llm_cls.py \
     --max_source_length $MAX_SOURCE_LENGTH \
     --max_target_length 196 \
     --per_device_eval_batch_size 4 \
-    --hierarchical_prediction \
-    --use_cross_attention \
-    --cross_threshold 0.1 \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $MODEL_ARGS \
     $EXTRA_ARGS

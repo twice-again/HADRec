@@ -533,6 +533,40 @@ def bootstrap_evaluation(pred_probs, true_labels, atc4_list_ehr, atc4_list_pkl, 
     }
 
 
+def compute_ddi_pair_rate(probs, atc4_list, ddi_pairs, threshold):
+    """论文 4.4 节定义：所有预测药物对中存在已知相互作用的比例（与 SafeDrug 等基线一致，不截断 top-k）"""
+    dd_cnt, all_cnt = 0, 0
+    for p in probs:
+        preds = [atc4_list[i] for i in np.where(p >= threshold)[0]]
+        for i in range(len(preds)):
+            for j in range(i + 1, len(preds)):
+                all_cnt += 1
+                if frozenset([preds[i], preds[j]]) in ddi_pairs:
+                    dd_cnt += 1
+    return dd_cnt / all_cnt if all_cnt > 0 else 0.0
+
+
+def compute_calibration(probs, labels, n_bins=10):
+    """论文 Table 9：在全部 (样本, 药物) 概率上计算 ECE（等宽分箱）与 Brier Score"""
+    p, y = probs.ravel(), labels.ravel()
+    bins = np.minimum((p * n_bins).astype(int), n_bins - 1)
+    ece = sum(abs(y[bins == b].mean() - p[bins == b].mean()) * (bins == b).mean()
+              for b in range(n_bins) if (bins == b).any())
+    return float(ece), float(np.mean((p - y) ** 2))
+
+
+def paper_definition_metrics(pred_probs, true_labels, atc4_list, ddi_pairs, threshold,
+                             n_rounds=10, sample_ratio=0.3, seed=42):
+    """按论文定义补充的指标；抽样方式与 bootstrap_evaluation 相同"""
+    rng = random.Random(seed)
+    n = len(pred_probs)
+    ddi = [compute_ddi_pair_rate(pred_probs[idx], atc4_list, ddi_pairs, threshold)
+           for idx in (rng.sample(range(n), int(n * sample_ratio)) for _ in range(n_rounds))]
+    ece, brier = compute_calibration(pred_probs, true_labels)
+    return {"threshold": threshold, "ddi_pair_mean": float(np.mean(ddi)), "ddi_pair_std": float(np.std(ddi)),
+            "ece": ece, "brier": brier}
+
+
 def main():
     # ==================== 配置 ====================
     import argparse
@@ -812,6 +846,17 @@ def main():
     print("\\end{table}")
     print("```")
     
+    # ==================== 按论文定义的补充指标 ====================
+    paper_metrics = paper_definition_metrics(pred_probs, true_labels, atc4_list_pkl, ddi_pairs, THRESHOLD)
+    print("\n" + "=" * 80)
+    print(f"📐 按论文定义的补充指标（阈值 = {THRESHOLD}）")
+    print("=" * 80)
+    print(f"DDI rate（药对比例，论文 4.4 节）: {paper_metrics['ddi_pair_mean']:.4f} ± {paper_metrics['ddi_pair_std']:.4f}")
+    print(f"ECE: {paper_metrics['ece']:.4f}    Brier: {paper_metrics['brier']:.4f}   （论文 Table 9）")
+    print("注：上面表格中的 DDI 为原代码口径（存在任一相互作用的样本比例，top-20 截断）")
+    with open(os.path.join(OUTPUT_DIR, "paper_metrics.json"), "w", encoding="utf-8") as f:
+        json.dump(paper_metrics, f, indent=2)
+
     print("\n" + "=" * 80)
     print("✅ 评估完成")
     print("=" * 80)

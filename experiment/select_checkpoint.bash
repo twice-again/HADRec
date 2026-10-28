@@ -7,7 +7,7 @@
 #      并把它的验证集预测复制到 results/${date}_val/，供 final_evaluation_with_bootstrap.py 调阈值
 #
 # 用法: bash experiment/select_checkpoint.bash
-# 可用环境变量覆盖: MODEL_NAME_OR_PATH DATA_DIR CKPT_ROOT RESULTS_ROOT DATE MAX_SOURCE_LENGTH SELECT_METRIC EXTRA_ARGS
+# 可用环境变量覆盖: MODEL_NAME_OR_PATH DATA_DIR CKPT_ROOT RESULTS_ROOT DATE MAX_SOURCE_LENGTH SELECT_METRIC MODEL_ARGS EXTRA_ARGS
 
 set -e
 
@@ -19,6 +19,10 @@ results_root="${RESULTS_ROOT:-results}"
 MAX_SOURCE_LENGTH="${MAX_SOURCE_LENGTH:-2048}"
 SELECT_METRIC="${SELECT_METRIC:-jaccard}"
 EXTRA_ARGS="${EXTRA_ARGS:-}"
+# 必须与训练时的模型结构参数一致
+if [ -z "${MODEL_ARGS+x}" ]; then
+    MODEL_ARGS="--hierarchical_prediction --use_cross_attention --cross_threshold 0.1 --drug_embedding_file $your_data_path/drug_embeddings.pt"
+fi
 
 val_root="$results_root/${date}_val_checkpoints"
 
@@ -38,10 +42,7 @@ predict() {  # predict <peft_path> <test_file> <output_dir>
         --max_source_length $MAX_SOURCE_LENGTH \
         --max_target_length 196 \
         --per_device_eval_batch_size 4 \
-        --hierarchical_prediction \
-        --use_cross_attention \
-        --cross_threshold 0.1 \
-        --drug_embedding_file $your_data_path/drug_embeddings.pt \
+        $MODEL_ARGS \
         $EXTRA_ARGS
 }
 
@@ -64,10 +65,11 @@ done
 
 # Step 2: 比较并选出最佳 checkpoint
 compare_log="$val_root/compare.log"
+drug_arg=$(echo "$MODEL_ARGS" | grep -o -- '--drug_embedding_file [^ ]*' || true)  # 词表过滤需与训练一致
 python scripts/compare_checkpoints.py \
     --pred_root "$val_root" \
     --train_file $your_data_path/train_atc_hierarchy2.json \
-    --drug_embedding_file $your_data_path/drug_embeddings.pt \
+    $drug_arg \
     --metric $SELECT_METRIC \
     --output_csv "$results_root/${date}_checkpoint_comparison.csv" | tee "$compare_log"
 best=$(tail -n 1 "$compare_log")

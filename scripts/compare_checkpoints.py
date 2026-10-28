@@ -24,7 +24,7 @@ def main():
     parser.add_argument("--pred_root", required=True, help="包含 checkpoint-*/test_predictions.json 的目录")
     parser.add_argument("--train_file", required=True, help="训练集，用于构建与训练时一致的 L4 词表")
     parser.add_argument("--drug_embedding_file", default=None)
-    parser.add_argument("--threshold", type=float, default=0.4, help="与 main_llm_cls.py 预测时的阈值一致")
+    parser.add_argument("--threshold", type=float, default=0.35, help="论文 4.5 节的推理阈值")
     parser.add_argument("--metric", default="jaccard", choices=["jaccard", "f1", "prauc"])
     parser.add_argument("--output_csv", required=True)
     args = parser.parse_args()

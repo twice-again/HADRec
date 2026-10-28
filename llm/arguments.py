@@ -89,6 +89,26 @@ class ModelArguments:
         default=None,
         metadata={"help": "预计算的药物嵌入文件路径（.pt格式）。如果提供，自动启用药物知识融合"}
     )
+    learnable_fusion_scale: Optional[bool] = field(
+        default=False,
+        metadata={"help": "论文 Eq.5：药物知识融合的残差系数 λ 设为可学习参数（初值 0.5）。默认 False 与原代码一致"}
+    )
+    bce_weights: Optional[str] = field(
+        default="0.4,0.4,1.0,1.5",
+        metadata={"help": "L1-L4 的 BCE 权重 λ_i（论文 Table 3 与原代码一致）；设为 0 可做 Fig.3 的监督消融"}
+    )
+    consistency_weight: Optional[float] = field(
+        default=0.1,
+        metadata={"help": "一致性损失总权重 λ_cons。原代码 0.1，论文 Table 3 为 0.01；设为 0 即去掉一致性约束（CL）"}
+    )
+    consistency_level_weights: Optional[str] = field(
+        default="2.0,1.5,1.0",
+        metadata={"help": "L2-L4 一致性损失权重。原代码 2.0,1.5,1.0，论文 Table 3 为 1.0,1.5,2.0"}
+    )
+    drug_align_weight: Optional[float] = field(
+        default=0.1,
+        metadata={"help": "药物对齐 MSE 损失权重。原代码 0.1；论文 Eq.14 的总损失中没有这一项（0）"}
+    )
     train_fusion_modules: Optional[bool] = field(
         default=False,
         metadata={"help": "按论文修正：训练并保存层级 cross-attention、残差归一化和药物知识模块。"
