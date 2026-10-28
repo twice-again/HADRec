@@ -105,10 +105,13 @@ It produces `atc3toSMILES.pkl`, `ddi_A_final.pkl` and `drug_embeddings.pt` (Chem
 Preprocessing runs fine on a CPU machine, so the raw MIMIC tables never need to leave it. Only the processed files (about 2.5MB compressed without `drug-DDI.csv`) go to the GPU instance:
 
 ```bash
-# local machine (Windows: run the .sh scripts in Git Bash or WSL)
-bash download.sh aux
-python data_process.py
-python scripts/pack_for_cloud.py            # -> hadrec_cloud_data.tar.gz (add --skip_ddi to leave out drug-DDI.csv)
+# local machine (pure Python, works on Windows)
+pip install -r requirements-preprocess.txt
+python scripts/prepare_local.py --aux_src <dir with drug-atc.csv, drug-DDI.csv, ndc2rxnorm_mapping.txt, ...> --mimic_dir <MIMIC-III dir> --run
+#   copies/renames auxiliary files (common aliases such as ndc2rxnorm_mapping.txt are recognised),
+#   downloads the missing public ones, unpacks the six MIMIC tables (.csv or .csv.gz),
+#   runs data_process.py and packs hadrec_cloud_data.tar.gz (add --skip_ddi to leave out drug-DDI.csv)
+#   ChemBERTa is downloaded from Hugging Face; set HF_ENDPOINT=https://hf-mirror.com or CHEMBERTA_MODEL=<local dir> if needed
 
 # cloud GPU instance, in the repository root
 python scripts/pack_for_cloud.py --verify hadrec_cloud_data.tar.gz && tar xzf hadrec_cloud_data.tar.gz
@@ -125,13 +128,19 @@ bash experiment/llm_cls.bash
 
 The script trains, then predicts on the test and validation sets (`results/atc_hierarchy2/`, `results/atc_hierarchy2_val/`). Paths can be overridden with `MODEL_NAME_OR_PATH=... DATA_DIR=...`.
 
+To also run the paper-corrected variant, which trains and saves the hierarchical cross-attention, residual norms and drug-knowledge module (in the original code they stay randomly initialised and are not saved), use a separate run name:
+
+```bash
+RUN_NAME=atc_hierarchy2_paper EXTRA_ARGS="--train_fusion_modules" bash experiment/llm_cls.bash
+```
+
 These predictions use the final checkpoint. To choose the checkpoint on the validation set instead (never on the test set), run:
 
 ```bash
 bash experiment/select_checkpoint.bash
 ```
 
-It predicts every saved checkpoint on the validation set, writes `results/atc_hierarchy2_checkpoint_comparison.csv`, and then writes the best checkpoint's test and validation predictions to the same locations as above.
+(add `DATE=atc_hierarchy2_paper` for the paper-corrected run). It predicts every saved checkpoint on the validation set, writes `results/atc_hierarchy2_checkpoint_comparison.csv`, and then writes the best checkpoint's test and validation predictions to the same locations as above.
 
 ---
 
@@ -208,6 +217,7 @@ results/                                  # predictions (not in git)
 ├── download.sh                        # Fetch external resources
 ├── requirements.txt / Dockerfile      # Pinned environment
 ├── scripts/
+│   ├── prepare_local.py               # Gather files and preprocess locally (Windows-friendly)
 │   ├── pack_for_cloud.py              # Bundle processed data for upload
 │   ├── compare_checkpoints.py         # Validation metrics per checkpoint
 │   └── smoke_test/prepare.py          # Synthetic data + tiny model

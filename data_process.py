@@ -388,58 +388,38 @@ print("\n" + "=" * 70)
 print("Step 8: 生成药物分子Embedding")
 print("=" * 70)
 
-# 检查是否已有预计算的embedding文件
+# 检查是否已有预计算的embedding文件（全零的占位文件不复用）
+drug_emb_data = None
 if os.path.exists(drug_embedding_pt):
     print(f"📂 发现已存在的embedding文件: {drug_embedding_pt}")
     print("   如果数据有变化，请删除该文件后重新运行")
-    drug_emb_data = torch.load(drug_embedding_pt)
-    if "atc4_codes" in drug_emb_data and "atc4_embeddings" in drug_emb_data:
+    loaded = torch.load(drug_embedding_pt)
+    if "atc4_embeddings" in loaded and "atc4_to_idx" in loaded and loaded["atc4_embeddings"].abs().sum() > 0:
+        drug_emb_data = loaded
+        drug_emb_data.setdefault("atc4_codes", list(loaded["atc4_to_idx"]))
         print(f"✅ 加载已有embedding: {drug_emb_data['atc4_embeddings'].shape}")
     else:
-        print("⚠️ 文件格式不正确，将重新生成")
-        drug_emb_data = None
-else:
-    drug_emb_data = None
+        print("⚠️ 文件格式不正确或为全零占位，将重新生成")
 
-# 如果没有预计算的embedding，从pkl文件生成
+# 从pkl文件生成；失败时直接报错，不写全零占位（否则后续会悄悄用零向量训练）
 if drug_emb_data is None:
-    if os.path.exists(atc3toSMILES_file):
-        print(f"📂 从 {atc3toSMILES_file} 加载ATC→SMILES映射...")
-        try:
-            from llm.drug_knowledge_module import load_drug_knowledge_from_pkl
-            drug_embeddings, atc4_to_idx = load_drug_knowledge_from_pkl(
-                pkl_file=atc3toSMILES_file,
-                output_file=drug_embedding_pt,
-                model_name="DeepChem/ChemBERTa-77M-MLM"
-            )
-            print(f"✅ 药物embedding生成完成: {drug_embeddings.shape}")
-        except Exception as e:
-            print(f"⚠️ 生成embedding失败: {e}")
-            print("   将使用零向量作为占位符")
-            # 创建零向量占位符
-            atc4_list = sorted(list(all_atc4_codes))
-            embed_dim = 384  # ChemBERTa-77M的默认维度
-            drug_embeddings = torch.zeros(len(atc4_list), embed_dim)
-            atc4_to_idx = {code: idx for idx, code in enumerate(atc4_list)}
-            torch.save({
-                "atc4_codes": atc4_list,
-                "atc4_embeddings": drug_embeddings,
-                "atc4_to_idx": atc4_to_idx
-            }, drug_embedding_pt)
-            print(f"✅ 已创建占位符embedding: {drug_embeddings.shape}")
-    else:
-        print(f"⚠️ SMILES映射文件不存在: {atc3toSMILES_file}")
-        print("   将使用零向量作为占位符")
-        atc4_list = sorted(list(all_atc4_codes))
-        embed_dim = 384
-        drug_embeddings = torch.zeros(len(atc4_list), embed_dim)
-        atc4_to_idx = {code: idx for idx, code in enumerate(atc4_list)}
-        torch.save({
-            "atc4_codes": atc4_list,
-            "atc4_embeddings": drug_embeddings,
-            "atc4_to_idx": atc4_to_idx
-        }, drug_embedding_pt)
-        print(f"✅ 已创建占位符embedding: {drug_embeddings.shape}")
+    if not os.path.exists(atc3toSMILES_file):
+        sys.exit(f"❌ SMILES映射文件不存在: {atc3toSMILES_file}，无法生成药物embedding")
+    print(f"📂 从 {atc3toSMILES_file} 加载ATC→SMILES映射...")
+    from llm.drug_knowledge_module import load_drug_knowledge_from_pkl
+    chemberta = os.environ.get("CHEMBERTA_MODEL", "DeepChem/ChemBERTa-77M-MLM")  # 可指向本地目录
+    try:
+        drug_embeddings, atc4_to_idx = load_drug_knowledge_from_pkl(
+            pkl_file=atc3toSMILES_file,
+            output_file=drug_embedding_pt,
+            model_name=chemberta
+        )
+    except Exception as e:
+        sys.exit(f"❌ 生成药物embedding失败: {e}\n"
+                 f"   请确认能访问 Hugging Face（国内可设 HF_ENDPOINT=https://hf-mirror.com），"
+                 f"或设置 CHEMBERTA_MODEL=<本地 ChemBERTa 目录> 后重新运行")
+    drug_emb_data = {"atc4_codes": list(atc4_to_idx), "atc4_embeddings": drug_embeddings}
+    print(f"✅ 药物embedding生成完成: {drug_embeddings.shape}")
 
 # 确保embedding文件包含所有需要的ATC4代码
 if drug_emb_data is not None:

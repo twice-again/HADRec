@@ -22,6 +22,7 @@ jsonlines==4.0.0
 sentencepiece==0.2.0
 protobuf==4.25.5
 gdown==5.2.0
+rdkit==2024.3.5      # data/mimic3/utils.py 预处理需要
 
 # 仅 GPU 训练需要；安装方式: DS_BUILD_OPS=0 pip install --no-build-isolation deepspeed==0.15.1
 deepspeed==0.15.1

@@ -55,6 +55,31 @@ def human(n):
     return f"{n:.1f}TB"
 
 
+def check_embedding_coverage():
+    """药物嵌入未覆盖的 L4 代码会被 EHRTokenizer 从标签中过滤掉，改变评估口径"""
+    try:
+        import torch
+    except ImportError:
+        print("⚠️  未安装 torch，跳过药物嵌入覆盖率检查")
+        return
+    emb = torch.load(os.path.join(ROOT, REQUIRED[3]), map_location="cpu")
+    codes = set(emb.get("atc4_to_idx", {}))
+    if float(emb["atc4_embeddings"].abs().sum()) == 0:
+        print("❌ drug_embeddings.pt 全为零，请重新生成")
+        sys.exit(1)
+    train = {c for line in open(os.path.join(ROOT, REQUIRED[0]), encoding="utf-8")
+             for c in json.loads(line)["atc_level_4"]}
+    test_labels = [c for line in open(os.path.join(ROOT, REQUIRED[2]), encoding="utf-8")
+                   for c in json.loads(line)["atc_level_4"]]
+    missing = sorted(train - codes)
+    dropped = sum(1 for c in test_labels if c not in codes)
+    if missing:
+        print(f"⚠️  药物嵌入未覆盖 {len(missing)}/{len(train)} 个 L4 代码: {missing}")
+        print(f"   测试集 {dropped}/{len(test_labels)} 个标签将被过滤，评估口径会与全量标签不同")
+    else:
+        print(f"✅ 药物嵌入覆盖全部 {len(train)} 个 L4 代码")
+
+
 def pack(output, skip_ddi):
     missing = [p for p in REQUIRED if not os.path.isfile(os.path.join(ROOT, p))]
     if missing:
@@ -64,6 +89,7 @@ def pack(output, skip_ddi):
         print("   drug_embeddings.pt 可由 python data_process.py 或 bash download.sh embeddings 生成")
         sys.exit(1)
 
+    check_embedding_coverage()
     files = list(REQUIRED)
     optional = OPTIONAL + ([] if skip_ddi else [DDI_CSV])
     for p in optional:
